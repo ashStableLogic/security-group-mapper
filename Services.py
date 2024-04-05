@@ -12,7 +12,7 @@ class Service(ABC):
         pass
     
     @abstractmethod
-    def get_services_in_security_group(services:list,security_group_id:str):
+    def get_services_in_security_group(security_group_id:str) -> list[dict]:
         pass
 
 class EC2(Service):
@@ -219,3 +219,44 @@ class ECS(NonLookupableService):
                             cls.services_by_security_group_id[security_group].append(service)
 
         return
+
+class ELB(NonLookupableService):
+
+    client=boto3.client('elbv2')
+    
+    @classmethod
+    def load_services(cls):
+        
+        services=[]
+
+        service_response=cls.client.describe_load_balancers()
+
+        if 'NextMarker' in service_response.keys():
+            next_token=service_response['NextMarker']
+        else:
+            next_token=None
+
+        services.extend(service_response['LoadBalancers'])
+
+        while next_token!=None:
+            service_response=cls.client.describe_load_balancers(
+                Marker=next_token
+            )
+
+            if 'NextMarker' in service_response.keys():
+                next_token=service_response['NextMarker']
+            else:
+                next_token=None
+
+            services.extend(service_response['LoadBalancers'])
+
+        for service in services:
+            if 'SecurityGroups' in service.keys():
+                security_groups=service['SecurityGroups']
+
+                for security_group in security_groups:
+                    if security_group not in cls.services_by_security_group_id.keys():
+                        cls.services_by_security_group_id[security_group]=[service]
+                    else:
+                        cls.services_by_security_group_id[security_group].append(service)
+            

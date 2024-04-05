@@ -5,12 +5,14 @@ from Services import *
 service_types=[
     "Elasticache",
     "Lambda",
-    "EC2",
+    "EC2",          #DONE
     "RDS",
-    "ALB",
-    "ECS"
+    "RedShift",
+    "ALB/NLB",      #DONE
+    "NAT Gateway"
+    "ECS"           #DONE
 ]
 
-test_ec2_services=EC2.get_services_in_security_group("sg-039f6c6227fc240b7")
+test_elb_service=ELB.get_services_in_security_group("sg-04eb8cea791cba8bc")
 
-print(len(test_ec2_services))
+print(len(test_elb_service))
