@@ -387,6 +387,46 @@ class Lambda(NonLookupableService):
                         
         return
     
-    
+class Elasticache(NonLookupableService):
 
+    client=boto3.client('elasticache')
+    
+    @classmethod
+    def load_services(cls) -> None:
+        
+        services=[]
+
+        service_response=cls.client.describe_cache_clusters()
+
+        if 'NextMarker' in service_response.keys():
+            next_token=service_response['NextMarker']
+        else:
+            next_token=None
+
+        services.extend(service_response['CacheClusters'])
+
+        while next_token!=None:
+            service_response=cls.client.describe_load_balancers(
+                Marker=next_token
+            )
+
+            if 'NextMarker' in service_response.keys():
+                next_token=service_response['NextMarker']
+            else:
+                next_token=None
+
+            services.extend(service_response['CacheClusters'])
+
+        for service in services:
+            if 'SecurityGroups' in service.keys():
+                security_groups=service['SecurityGroups']
+
+                for security_group in security_groups:
+                    security_group_id=security_group['SecurityGroupId']
+                    if security_group_id not in cls.services_by_security_group_id.keys():
+                        cls.services_by_security_group_id[security_group_id]=[service]
+                    else:
+                        cls.services_by_security_group_id[security_group_id].append(service)
+                        
+        return
     
