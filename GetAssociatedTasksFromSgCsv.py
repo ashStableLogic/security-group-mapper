@@ -33,8 +33,8 @@ with open(read_csv_filename,'r') as read_file, ps.ExcelWriter(write_csv_filename
 
         for write_headers_index in write_headers_names_to_indices.values():
             entry.append(row[write_headers_index])
-
-        network_interface_iterator=ec2.network_interfaces.filter(
+    
+        network_interfaces=ec2.describe_network_interfaces(
             Filters=[
                 {
                     'Name':'group-id',
@@ -43,9 +43,9 @@ with open(read_csv_filename,'r') as read_file, ps.ExcelWriter(write_csv_filename
                     ]
                 }
             ]
-        )
+        )['NetworkInterfaces']
 
-        associated_tasks_string='\n'.join([interface.description for interface in network_interface_iterator])
+        associated_tasks_string='\n'.join([interface.description for interface in network_interfaces])
 
         entry.append(associated_tasks_string)
 
