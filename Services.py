@@ -9,11 +9,11 @@ class Service(ABC):
     @property
     @abstractmethod
     def client():
-        pass
+        raise NotImplementedError()
     
     @abstractmethod
     def get_services_in_security_group(security_group_id:str) -> list[dict]:
-        pass
+        raise NotImplementedError()
 
 class EC2(Service):
 
@@ -86,7 +86,7 @@ class EC2(Service):
 
         if "arn:aws:ecs" in description:
             return ECS
-        
+      
 class NonLookupableService(Service):
     """For the different services that can't be queried directly for all
     services corresponding to a given security group.
@@ -103,7 +103,7 @@ class NonLookupableService(Service):
     def load_services():
         """Loads services to a flat list 
         """
-        pass
+        raise NotImplementedError()
 
     @classmethod
     def get_services_in_security_group(cls,security_group_id:str)->list[dict]:
@@ -225,7 +225,7 @@ class ELB(NonLookupableService):
     client=boto3.client('elbv2')
     
     @classmethod
-    def load_services(cls):
+    def load_services(cls) -> None:
         
         services=[]
 
@@ -259,4 +259,47 @@ class ELB(NonLookupableService):
                         cls.services_by_security_group_id[security_group]=[service]
                     else:
                         cls.services_by_security_group_id[security_group].append(service)
-            
+                        
+        return
+    
+class RDS(NonLookupableService):
+    
+    client=boto3.client('rds')
+    
+    @classmethod
+    def load_services(cls)->None:        
+        services=[]
+
+        service_response=cls.client.describe_db_instances()
+
+        if 'NextMarker' in service_response.keys():
+            next_token=service_response['NextMarker']
+        else:
+            next_token=None
+
+        services.extend(service_response['DBInstances'])
+
+        while next_token!=None:
+            service_response=cls.client.describe_db_instances(
+                Marker=next_token
+            )
+
+            if 'NextMarker' in service_response.keys():
+                next_token=service_response['NextMarker']
+            else:
+                next_token=None
+
+            services.extend(service_response['DBInstances'])
+
+        for service in services:
+            if 'VpcSecurityGroups' in service.keys():
+                security_groups=service['VpcSecurityGroups']
+
+                for security_group in security_groups:
+                    security_group=security_group['VpcSecurityGroupId']
+                    if security_group not in cls.services_by_security_group_id.keys():
+                        cls.services_by_security_group_id[security_group]=[service]
+                    else:
+                        cls.services_by_security_group_id[security_group].append(service)
+                        
+        return

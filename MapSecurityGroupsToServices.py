@@ -6,13 +6,13 @@ service_types=[
     "Elasticache",
     "Lambda",
     "EC2",          #DONE
-    "RDS",
+    "RDS",          #DONE
     "RedShift",
     "ALB/NLB",      #DONE
-    "NAT Gateway"
+    # "NAT Gateway"   
     "ECS"           #DONE
 ]
 
-test_elb_service=ELB.get_services_in_security_group("sg-04eb8cea791cba8bc")
+test_rds_services=RDS.get_services_in_security_group("sg-08dc033d9a5edf3db")
 
-print(len(test_elb_service))
+print(test_rds_services)
