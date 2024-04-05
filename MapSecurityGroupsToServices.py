@@ -11,8 +11,6 @@ service_types=[
     "ECS"
 ]
 
-ECS.load_services()
+test_ec2_services=EC2.get_services_in_security_group("sg-039f6c6227fc240b7")
 
-test_ecs_services=ECS.get_services_in_security_group("sg-0e0fb363ead3cc7d3")
-
-print(len(test_ecs_services))
+print(len(test_ec2_services))

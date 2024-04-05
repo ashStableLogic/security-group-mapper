@@ -22,23 +22,48 @@ class EC2(Service):
 
     @classmethod
     def get_services_in_security_group(cls,security_group_id:str) -> list[dict]:
-        # service_response=cls.client.describe_instances(
-        #     Filters=[
-        #         {
-        #             'Name':'instance.group-id',
-        #             'Values':[
-        #                 f'{security_group_id}'
-        #             ]
-        #         }
-        #     ]
-        # )
+        instances=[]
+    
+        service_response=cls.client.describe_instances(
+            Filters=[
+                {
+                    'Name':'instance.group-id',
+                    'Values':[
+                        f'{security_group_id}'
+                    ]
+                }
+            ]
+        )
 
-        # next_token=service_response['nextToken']
+        if 'nextToken' in service_response.keys():
+            next_token=service_response['nextToken']
+        else:
+            next_token=None
 
-        # for reservation in service_response['reservations']
+        for reservation in service_response['Reservations']:
+            instances.extend(reservation['Instances'])
 
-        pass
+        while next_token!=None:
+            service_response=cls.client.describe_instances(
+            Filters=[
+                        {
+                            'Name':'instance.group-id',
+                            'Values':[
+                                f'{security_group_id}'
+                            ]
+                        }
+                    ]
+                )
 
+            if 'nextToken' in service_response.keys():
+                next_token=service_response['nextToken']
+            else:
+                next_token=None
+
+            for reservation in service_response['reservations']:
+                instances.extend(reservation['Instances'])
+
+        return instances
 
     @classmethod
     def get_network_interfaces_for_security_group(cls,security_group_id) -> list[dict]:
@@ -81,7 +106,7 @@ class NonLookupableService(Service):
         pass
 
     @classmethod
-    def get_services_in_security_group(cls,security_group_id:str)->list[str]:
+    def get_services_in_security_group(cls,security_group_id:str)->list[dict]:
         if not cls.has_services():
             cls.load_services()
 
