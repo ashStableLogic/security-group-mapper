@@ -4,7 +4,7 @@ from Services import *
 
 service_types=[
     "Elasticache",
-    "Lambda",
+    "Lambda",       #DONE
     "EC2",          #DONE
     "RDS",          #DONE
     "RedShift",     #DONE
@@ -13,8 +13,8 @@ service_types=[
     "ECS"           #DONE
 ]
 
-test_sg_id="sg-0bdcc4b9d44ff7566"
+test_sg_id="sg-088fedfb35f162d49"
 
-test_rds_services=Redshift.get_services_in_security_group(test_sg_id)
+test_services=Lambda.get_services_in_security_group(test_sg_id)
 
-print(test_rds_services)
+print(test_services)

@@ -354,14 +354,14 @@ class Lambda(NonLookupableService):
     def load_services(cls)->None:        
         services=[]
 
-        service_response=cls.client.describe_clusters()
+        service_response=cls.client.list_functions()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
         else:
             next_token=None
 
-        services.extend(service_response['Clusters'])
+        services.extend(service_response['Functions'])
 
         while next_token!=None:
             service_response=cls.client.describe_db_instances(
@@ -373,18 +373,17 @@ class Lambda(NonLookupableService):
             else:
                 next_token=None
 
-            services.extend(service_response['Clusters'])
+            services.extend(service_response['Functions'])
 
         for service in services:
-            if 'VpcSecurityGroups' in service.keys():
-                security_groups=service['VpcSecurityGroups']
+            if 'VpcConfig' in service.keys():
+                security_group_ids=service['VpcConfig']['SecurityGroupIds']
 
-                for security_group in security_groups:
-                    security_group=security_group['VpcSecurityGroupId']
-                    if security_group not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group]=[service]
+                for security_group_id in security_group_ids:
+                    if security_group_id not in cls.services_by_security_group_id.keys():
+                        cls.services_by_security_group_id[security_group_id]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group].append(service)
+                        cls.services_by_security_group_id[security_group_id].append(service)
                         
         return
     
