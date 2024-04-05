@@ -7,12 +7,14 @@ service_types=[
     "Lambda",
     "EC2",          #DONE
     "RDS",          #DONE
-    "RedShift",
+    "RedShift",     #DONE
     "ALB/NLB",      #DONE
     # "NAT Gateway"   
     "ECS"           #DONE
 ]
 
-test_rds_services=RDS.get_services_in_security_group("sg-08dc033d9a5edf3db")
+test_sg_id="sg-0bdcc4b9d44ff7566"
+
+test_rds_services=Redshift.get_services_in_security_group(test_sg_id)
 
 print(test_rds_services)
