@@ -2,7 +2,7 @@ from abc import ABC,abstractmethod
 import boto3
 
 class Service(ABC):
-    """Service ABC, defines a common SG in resources out method
+    """Service ABC, defines a common 1:m SG in -> services out method
     common to all services
     """
 
@@ -12,17 +12,37 @@ class Service(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    def get_services_in_security_group(security_group_id:str) -> list[dict]:
+    def get_services_in_security_group(security_group:dict) -> list[dict]:
         raise NotImplementedError()
+    
+    @abstractmethod
+    def get_service_names_in_security_group(security_group: dict)->list[str]:
+        raise NotImplementedError() 
 
 class EC2(Service):
 
     client=boto3.client('ec2')
     resource=boto3.resource('ec2')
+    
+    
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)->list[str]:
+        services=cls.get_services_in_security_group(security_group)
+                
+        service_names=[]
+        
+        for service in services:
+            tags=service['Tags']
+            
+            service_names.extend([tag['Value'] for tag in tags if tag['Key']=='Name'])
+        
+        return service_names
 
     @classmethod
-    def get_services_in_security_group(cls,security_group_id:str) -> list[dict]:
+    def get_services_in_security_group(cls,security_group:dict) -> list[dict]:
         instances=[]
+        
+        security_group_id=security_group['GroupId']
     
         service_response=cls.client.describe_instances(
             Filters=[
@@ -66,7 +86,36 @@ class EC2(Service):
         return instances
 
     @classmethod
-    def get_network_interfaces_for_security_group(cls,security_group_id) -> list[dict]:
+    def get_security_groups(cls)-> list[dict]:
+        security_groups=[]
+        
+        response=cls.client.describe_security_groups()
+        
+        security_groups.extend(response['SecurityGroups'])
+        
+        if 'NextToken' in response.keys():
+            next_token=response['NextToken']
+        else:
+            next_token=None
+        
+        while next_token!=None:
+            response=cls.client.describe_security_groups(
+                NextToken=next_token
+            )
+        
+            security_groups.extend(response['SecurityGroups'])
+            
+            if 'NextToken' in response.keys():
+                next_token=response['NextToken']
+            else:
+                next_token=None
+                
+        return security_groups
+
+    @classmethod
+    def get_network_interfaces_for_security_group(cls,security_group: dict) -> list[dict]:
+        security_group_id=security_group['GroupId']
+        
         network_interfaces=cls.client.describe_network_interfaces(
                 Filters=[
                     {
@@ -81,11 +130,37 @@ class EC2(Service):
         return network_interfaces
 
     @staticmethod
-    def get_service_type_from_network_interface_json(network_interface_json:str) -> Service:
-        description=network_interface_json['Description']
+    def get_service_types_from_network_interfaces(network_interface_jsons:list[str]) -> set[Service]:
+        services_to_lookup=set()            
+        for network_interface_json in network_interface_jsons:
+            
+            interface_type=network_interface_json['InterfaceType']
+            description=network_interface_json['Description']
+            
+            instance_id=None
+            
+            if 'Attachment' in network_interface_json.keys():
+                if 'InstanceId' in network_interface_json['Attachment'].keys():
+                    instance_id=network_interface_json['Attachment']['InstanceId']
 
-        if "arn:aws:ecs" in description:
-            return ECS
+            if interface_type=="lambda":
+                services_to_lookup.add(Lambda)
+            elif instance_id!=None:
+                services_to_lookup.add(EC2)
+            elif "arn:aws:ecs" in description:
+                services_to_lookup.add(ECS)
+            elif "ELB app" in description:
+                services_to_lookup.add(ALB)
+            elif "RDSNetworkInterface" in description:
+                services_to_lookup.add(RDS)
+            elif "DMSNetworkInterface" in description:
+                services_to_lookup.add(DMS)
+            elif "RedshiftNetworkInterface" in description:
+                services_to_lookup.add(Redshift)            
+            elif "ElastiCache" in description:
+                services_to_lookup.add(ElastiCache)
+                
+        return services_to_lookup
       
 class NonLookupableService(Service):
     """For the different services that can't be queried directly for all
@@ -97,20 +172,34 @@ class NonLookupableService(Service):
     This means that I'll only have to do one set of queries for each service.
     """
 
-    services_by_security_group_id:dict[str,list]={}
+    @property
+    @abstractmethod
+    def services_by_security_group_id():
+        raise NotImplementedError()
 
     @abstractmethod
     def load_services():
         """Loads services to a flat list 
         """
         raise NotImplementedError()
+    
+    @abstractmethod
+    def get_service_names_in_security_group(cls,security_group: dict)->list[str]:
+        raise NotImplementedError()
 
     @classmethod
-    def get_services_in_security_group(cls,security_group_id:str)->list[dict]:
+    def get_services_in_security_group(cls,security_group:list[dict])->list[dict]:
+        security_group_id=security_group['GroupId']
+        
         if not cls.has_services():
             cls.load_services()
 
-        return cls.services_by_security_group_id[security_group_id]
+        if security_group_id in cls.services_by_security_group_id.keys():
+            services=cls.services_by_security_group_id[security_group_id]
+        else:
+            services=[]
+        
+        return services
 
     @classmethod
     def has_services(cls):
@@ -121,6 +210,7 @@ class ECS(NonLookupableService):
     """
 
     client=boto3.client('ecs')
+    services_by_security_group_id:dict[str,list]={}
 
     ###boto3 docs state ecs client.describe_services can only
     ###take a max of take 10 services at a time
@@ -220,9 +310,18 @@ class ECS(NonLookupableService):
 
         return
 
-class ELB(NonLookupableService):
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)->list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['serviceName'] for service in services]
+        
+        return service_names
+
+class ALB(NonLookupableService):
 
     client=boto3.client('elbv2')
+    services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def load_services(cls) -> None:
@@ -262,9 +361,19 @@ class ELB(NonLookupableService):
                         
         return
     
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)->list[str]:
+        
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['LoadBalancerName'] for service in services]
+        
+        return service_names
+    
 class RDS(NonLookupableService):
     
     client=boto3.client('rds')
+    services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def load_services(cls)->None:        
@@ -304,9 +413,18 @@ class RDS(NonLookupableService):
                         
         return
     
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group:dict)-> list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['DBInstanceIdentifier'] for service in services]
+        
+        return service_names
+    
 class Redshift(NonLookupableService):
     
     client=boto3.client('redshift')
+    services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def load_services(cls)->None:        
@@ -346,9 +464,18 @@ class Redshift(NonLookupableService):
                         
         return
     
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)-> list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['ClusterIdentifier'] for service in services]
+        
+        return service_names
+    
 class Lambda(NonLookupableService):
     
     client=boto3.client('lambda')
+    services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def load_services(cls)->None:        
@@ -387,9 +514,18 @@ class Lambda(NonLookupableService):
                         
         return
     
-class Elasticache(NonLookupableService):
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)-> list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['FunctionName'] for service in services]
+        
+        return service_names
+    
+class ElastiCache(NonLookupableService):
 
     client=boto3.client('elasticache')
+    services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def load_services(cls) -> None:
@@ -429,4 +565,65 @@ class Elasticache(NonLookupableService):
                         cls.services_by_security_group_id[security_group_id].append(service)
                         
         return
+    
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)-> list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['CacheClusterId'] for service in services]
+        
+        return service_names
+
+class DMS(NonLookupableService):
+    
+    client=boto3.client('dms')
+    services_by_security_group_id:dict[str,list]={}
+    
+    @classmethod
+    def load_services(cls) -> None:
+        
+        services=[]
+
+        service_response=cls.client.describe_replication_instances()
+
+        if 'NextMarker' in service_response.keys():
+            next_token=service_response['NextMarker']
+        else:
+            next_token=None
+
+        services.extend(service_response['ReplicationInstances'])
+
+        while next_token!=None:
+            service_response=cls.client.describe_load_balancers(
+                Marker=next_token
+            )
+
+            if 'NextMarker' in service_response.keys():
+                next_token=service_response['NextMarker']
+            else:
+                next_token=None
+
+            services.extend(service_response['ReplicationInstances'])
+
+        for service in services:
+            if 'VpcSecurityGroups' in service.keys():
+                security_groups=service['VpcSecurityGroups']
+
+                for security_group in security_groups:
+                    security_group_id=security_group['VpcSecurityGroupId']
+                    if security_group_id not in cls.services_by_security_group_id.keys():
+                        cls.services_by_security_group_id[security_group_id]=[service]
+                    else:
+                        cls.services_by_security_group_id[security_group_id].append(service)
+                        
+        return
+        
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)-> list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['ReplicationInstanceIdentifier'] for service in services]
+        
+        return service_names
+    
     
