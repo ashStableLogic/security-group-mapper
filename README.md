@@ -53,9 +53,8 @@ If it's not, make it inherit the `NonLookupableService` class and implement its 
 You'll still need to implement its `NonLookupableService.get_service_names_in_security_group()` it inherits from the `Service` class.
 
 # Requirements
-There should be yaml for a conda env in the repo.
-
-
+This repo has a conda requirements file.
+In your conda prompt, run conda env create -f requirements.yml
 
 # TODO
  - [ ] Add EMR as a supported service type
