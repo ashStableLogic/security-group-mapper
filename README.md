@@ -60,5 +60,6 @@ In your conda prompt, run conda env create -f requirements.yml
 
 # TODO
  - [x] Add EMR as a supported service type
- - [ ] Add support for multiple regions for each service type
+ - [x] Add support for multiple regions for each service type
+ - [ ] Add support for inputting aws creds instead of relying on environment variables
  - [ ] Tidy up and comment everything
