@@ -12,6 +12,10 @@ class Service(ABC):
         raise NotImplementedError()
     
     @abstractmethod
+    def get_client() -> boto3.Session:
+        raise NotImplementedError()
+    
+    @abstractmethod
     def set_client_region(region_name: str) -> None:
         raise NotImplementedError()
     
@@ -25,12 +29,24 @@ class Service(ABC):
 
 class EC2(Service):
 
-    client=boto3.client('ec2')
-    resource=boto3.resource('ec2')
+    __client=boto3.client('ec2')
+    __resource=boto3.resource('ec2')
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('ec2',region_name=region_name)
+    def get_client(cls) -> boto3.Session:
+        return cls.__client
+    
+    @classmethod
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client('ec2',region_name=region)
+        
+    @classmethod
+    def get_resource(cls) -> boto3.Session:
+        return cls.__resource
+    
+    @classmethod    
+    def get_all_available_regions(cls)-> None:
+        return [region['RegionName'] for region in cls.__client.describe_regions(AllRegions=False)['Regions']]
     
     @classmethod
     def get_service_names_in_security_group(cls,security_group: dict)->list[str]:
@@ -51,7 +67,7 @@ class EC2(Service):
         
         security_group_id=security_group['GroupId']
     
-        service_response=cls.client.describe_instances(
+        service_response=cls.__client.describe_instances(
             Filters=[
                 {
                     'Name':'instance.group-id',
@@ -71,7 +87,7 @@ class EC2(Service):
             instances.extend(reservation['Instances'])
 
         while next_token!=None:
-            service_response=cls.client.describe_instances(
+            service_response=cls.__client.describe_instances(
             Filters=[
                         {
                             'Name':'instance.group-id',
@@ -96,7 +112,7 @@ class EC2(Service):
     def get_security_groups(cls)-> list[dict]:
         security_groups=[]
         
-        response=cls.client.describe_security_groups()
+        response=cls.__client.describe_security_groups()
         
         security_groups.extend(response['SecurityGroups'])
         
@@ -123,7 +139,7 @@ class EC2(Service):
     def get_network_interfaces_for_security_group(cls,security_group: dict) -> list[dict]:
         security_group_id=security_group['GroupId']
         
-        network_interfaces=cls.client.describe_network_interfaces(
+        network_interfaces=cls.__client.describe_network_interfaces(
                 Filters=[
                     {
                         'Name':'group-id',
@@ -205,8 +221,8 @@ class NonLookupableService(Service):
         if not cls.has_services():
             cls.load_services()
 
-        if security_group_id in cls.services_by_security_group_id.keys():
-            services=cls.services_by_security_group_id[security_group_id]
+        if security_group_id in cls._services_by_security_group_id.keys():
+            services=cls._services_by_security_group_id[security_group_id]
         else:
             services=[]
         
@@ -214,14 +230,14 @@ class NonLookupableService(Service):
 
     @classmethod
     def has_services(cls):
-        return len(cls.services_by_security_group_id.keys())>0        
+        return len(cls._services_by_security_group_id.keys())>0        
         
 class ECS(NonLookupableService):
     """Deals with lookup for ECS services
     """
 
-    client=boto3.client('ecs')
-    services_by_security_group_id:dict[str,list]={}
+    __client=boto3.client('ecs')
+    _services_by_security_group_id:dict[str,list]={}
 
     ###boto3 docs state ecs client.describe_services can only
     ###take a max of take 10 services at a time
@@ -229,7 +245,7 @@ class ECS(NonLookupableService):
     
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('ecs',region_name=region_name)
+        cls.__client=boto3.client('ecs',region_name=region_name)
 
     @classmethod
     def load_services(cls) -> None:
@@ -245,7 +261,7 @@ class ECS(NonLookupableService):
 
         cluster_arns=[]
 
-        cluster_arn_response=cls.client.list_clusters()
+        cluster_arn_response=cls.__client.list_clusters()
 
         if 'nextToken' in cluster_arn_response.keys():
             next_token=cluster_arn_response['nextToken']
@@ -255,7 +271,7 @@ class ECS(NonLookupableService):
         cluster_arns.extend(cluster_arn_response['clusterArns'])
 
         while next_token!=None:
-            cluster_arn_response=cls.client.list_clusters(
+            cluster_arn_response=cls.__client.list_clusters(
                 nextToken=next_token
             )
 
@@ -269,7 +285,7 @@ class ECS(NonLookupableService):
         for cluster_arn in cluster_arns:
             service_arns=[]
 
-            service_arn_response=cls.client.list_services(
+            service_arn_response=cls.__client.list_services(
                 cluster=cluster_arn
             )
 
@@ -281,7 +297,7 @@ class ECS(NonLookupableService):
             service_arns.extend(service_arn_response['serviceArns'])
 
             while next_token!=None:
-                service_arn_response=cls.client.list_services(
+                service_arn_response=cls.__client.list_services(
                     cluster=cluster_arn,
                     nextToken=next_token
                 )
@@ -304,12 +320,12 @@ class ECS(NonLookupableService):
             for service_arn_index in range(0,service_arns_len,cls.lookup_batch_size):
                 
                 if service_arns_len-service_arn_index<cls.lookup_batch_size:
-                    service_response=cls.client.describe_services(
+                    service_response=cls.__client.describe_services(
                         cluster=cluster_arn,
                         services=service_arns[service_arn_index:]
                     )
                 else:
-                    service_response=cls.client.describe_services(
+                    service_response=cls.__client.describe_services(
                         cluster=cluster_arn,
                         services=service_arns[service_arn_index:cls.lookup_batch_size]
                     )
@@ -318,10 +334,10 @@ class ECS(NonLookupableService):
                     security_groups=service['networkConfiguration']['awsvpcConfiguration']['securityGroups']
 
                     for security_group in security_groups:
-                        if security_group not in cls.services_by_security_group_id.keys():
-                            cls.services_by_security_group_id[security_group]=[service]
+                        if security_group not in cls._services_by_security_group_id.keys():
+                            cls._services_by_security_group_id[security_group]=[service]
                         else:
-                            cls.services_by_security_group_id[security_group].append(service)
+                            cls._services_by_security_group_id[security_group].append(service)
 
         return
 
@@ -335,19 +351,19 @@ class ECS(NonLookupableService):
 
 class ALB(NonLookupableService):
 
-    client=boto3.client('elbv2')
-    services_by_security_group_id:dict[str,list]={}
-    
+    __client=boto3.client('elbv2')
+    _services_by_security_group_id:dict[str,list]={}
+        
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('elbv2',region_name=region_name)
+        cls.__client=boto3.client('elbv2',region_name=region_name)
     
     @classmethod
     def load_services(cls) -> None:
         
         services=[]
 
-        service_response=cls.client.describe_load_balancers()
+        service_response=cls.__client.describe_load_balancers()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
@@ -357,7 +373,7 @@ class ALB(NonLookupableService):
         services.extend(service_response['LoadBalancers'])
 
         while next_token!=None:
-            service_response=cls.client.describe_load_balancers(
+            service_response=cls.__client.describe_load_balancers(
                 Marker=next_token
             )
 
@@ -373,10 +389,10 @@ class ALB(NonLookupableService):
                 security_groups=service['SecurityGroups']
 
                 for security_group in security_groups:
-                    if security_group not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group]=[service]
+                    if security_group not in cls._services_by_security_group_id.keys():
+                        cls._services_by_security_group_id[security_group]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group].append(service)
+                        cls._services_by_security_group_id[security_group].append(service)
                         
         return
     
@@ -391,18 +407,18 @@ class ALB(NonLookupableService):
     
 class RDS(NonLookupableService):
     
-    client=boto3.client('rds')
-    services_by_security_group_id:dict[str,list]={}
-    
+    __client=boto3.client('rds')
+    _services_by_security_group_id:dict[str,list]={}
+        
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('rds',region_name=region_name)
+        cls.__client=boto3.client('rds',region_name=region_name)
     
     @classmethod
     def load_services(cls)->None:        
         services=[]
 
-        service_response=cls.client.describe_db_instances()
+        service_response=cls.__client.describe_db_instances()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
@@ -412,7 +428,7 @@ class RDS(NonLookupableService):
         services.extend(service_response['DBInstances'])
 
         while next_token!=None:
-            service_response=cls.client.describe_db_instances(
+            service_response=cls.__client.describe_db_instances(
                 Marker=next_token
             )
 
@@ -429,10 +445,10 @@ class RDS(NonLookupableService):
 
                 for security_group in security_groups:
                     security_group=security_group['VpcSecurityGroupId']
-                    if security_group not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group]=[service]
+                    if security_group not in cls._services_by_security_group_id.keys():
+                        cls._services_by_security_group_id[security_group]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group].append(service)
+                        cls._services_by_security_group_id[security_group].append(service)
                         
         return
     
@@ -446,18 +462,18 @@ class RDS(NonLookupableService):
     
 class Redshift(NonLookupableService):
     
-    client=boto3.client('redshift')
-    services_by_security_group_id:dict[str,list]={}
+    __client=boto3.client('redshift')
+    _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('redshift',region_name=region_name)
+        cls.__client=boto3.client('redshift',region_name=region_name)
     
     @classmethod
     def load_services(cls)->None:        
         services=[]
 
-        service_response=cls.client.describe_clusters()
+        service_response=cls.__client.describe_clusters()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
@@ -467,7 +483,7 @@ class Redshift(NonLookupableService):
         services.extend(service_response['Clusters'])
 
         while next_token!=None:
-            service_response=cls.client.describe_db_instances(
+            service_response=cls.__client.describe_db_instances(
                 Marker=next_token
             )
 
@@ -484,10 +500,10 @@ class Redshift(NonLookupableService):
 
                 for security_group in security_groups:
                     security_group=security_group['VpcSecurityGroupId']
-                    if security_group not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group]=[service]
+                    if security_group not in cls._services_by_security_group_id.keys():
+                        cls._services_by_security_group_id[security_group]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group].append(service)
+                        cls._services_by_security_group_id[security_group].append(service)
                         
         return
     
@@ -501,18 +517,18 @@ class Redshift(NonLookupableService):
     
 class Lambda(NonLookupableService):
     
-    client=boto3.client('lambda')
-    services_by_security_group_id:dict[str,list]={}
+    __client=boto3.client('lambda')
+    _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('lambda',region_name=region_name)
+        cls.__client=boto3.client('lambda',region_name=region_name)
     
     @classmethod
     def load_services(cls)->None:        
         services=[]
 
-        service_response=cls.client.list_functions()
+        service_response=cls.__client.list_functions()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
@@ -522,7 +538,7 @@ class Lambda(NonLookupableService):
         services.extend(service_response['Functions'])
 
         while next_token!=None:
-            service_response=cls.client.describe_db_instances(
+            service_response=cls.__client.describe_db_instances(
                 Marker=next_token
             )
 
@@ -538,10 +554,10 @@ class Lambda(NonLookupableService):
                 security_group_ids=service['VpcConfig']['SecurityGroupIds']
 
                 for security_group_id in security_group_ids:
-                    if security_group_id not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group_id]=[service]
+                    if security_group_id not in cls._services_by_security_group_id.keys():
+                        cls._services_by_security_group_id[security_group_id]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group_id].append(service)
+                        cls._services_by_security_group_id[security_group_id].append(service)
                         
         return
     
@@ -555,19 +571,19 @@ class Lambda(NonLookupableService):
     
 class ElastiCache(NonLookupableService):
 
-    client=boto3.client('elasticache')
-    services_by_security_group_id:dict[str,list]={}
+    __client=boto3.client('elasticache')
+    _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('elasticache',region_name=region_name)
+        cls.__client=boto3.client('elasticache',region_name=region_name)
     
     @classmethod
     def load_services(cls) -> None:
         
         services=[]
 
-        service_response=cls.client.describe_cache_clusters()
+        service_response=cls.__client.describe_cache_clusters()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
@@ -577,7 +593,7 @@ class ElastiCache(NonLookupableService):
         services.extend(service_response['CacheClusters'])
 
         while next_token!=None:
-            service_response=cls.client.describe_load_balancers(
+            service_response=cls.__client.describe_load_balancers(
                 Marker=next_token
             )
 
@@ -594,10 +610,10 @@ class ElastiCache(NonLookupableService):
 
                 for security_group in security_groups:
                     security_group_id=security_group['SecurityGroupId']
-                    if security_group_id not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group_id]=[service]
+                    if security_group_id not in cls._services_by_security_group_id.keys():
+                        cls._services_by_security_group_id[security_group_id]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group_id].append(service)
+                        cls._services_by_security_group_id[security_group_id].append(service)
                         
         return
     
@@ -611,19 +627,19 @@ class ElastiCache(NonLookupableService):
 
 class DMS(NonLookupableService):
     
-    client=boto3.client('dms')
-    services_by_security_group_id:dict[str,list]={}
+    __client=boto3.client('dms')
+    _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('dms',region_name=region_name)
+        cls.__client=boto3.client('dms',region_name=region_name)
     
     @classmethod
     def load_services(cls) -> None:
         
         services=[]
 
-        service_response=cls.client.describe_replication_instances()
+        service_response=cls.__client.describe_replication_instances()
 
         if 'NextMarker' in service_response.keys():
             next_token=service_response['NextMarker']
@@ -633,7 +649,7 @@ class DMS(NonLookupableService):
         services.extend(service_response['ReplicationInstances'])
 
         while next_token!=None:
-            service_response=cls.client.describe_load_balancers(
+            service_response=cls.__client.describe_load_balancers(
                 Marker=next_token
             )
 
@@ -650,10 +666,10 @@ class DMS(NonLookupableService):
 
                 for security_group in security_groups:
                     security_group_id=security_group['VpcSecurityGroupId']
-                    if security_group_id not in cls.services_by_security_group_id.keys():
-                        cls.services_by_security_group_id[security_group_id]=[service]
+                    if security_group_id not in cls._services_by_security_group_id.keys():
+                        cls._services_by_security_group_id[security_group_id]=[service]
                     else:
-                        cls.services_by_security_group_id[security_group_id].append(service)
+                        cls._services_by_security_group_id[security_group_id].append(service)
                         
         return
         
@@ -667,12 +683,12 @@ class DMS(NonLookupableService):
     
 class EMR(NonLookupableService):
     
-    client=boto3.client('emr')
-    services_by_security_group_id:dict[str,list]={}
+    __client=boto3.client('emr')
+    _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
     def set_client_region(cls,region_name: str) -> None:
-        cls.client=boto3.client('emr',region_name=region_name)
+        cls.__client=boto3.client('emr',region_name=region_name)
     
     #Look for clusters in these states only
     cluster_states=[
@@ -690,7 +706,7 @@ class EMR(NonLookupableService):
         
         cluster_ids=[]
         
-        cluster_list_response=cls.client.list_clusters(ClusterStates=cls.cluster_states)
+        cluster_list_response=cls.__client.list_clusters(ClusterStates=cls.cluster_states)
         
         cluster_ids.extend([cluster['Id'] for cluster in cluster_list_response['Clusters']])
         
@@ -700,7 +716,7 @@ class EMR(NonLookupableService):
             next_token=None
             
         while next_token!=None:
-            cluster_list_response=cls.client.list_clusters(
+            cluster_list_response=cls.__client.list_clusters(
                 ClusterStates=cls.cluster_states,
                 Marker=next_token
             )
@@ -710,7 +726,7 @@ class EMR(NonLookupableService):
         for cluster_id in cluster_ids:
             security_group_ids=[]
             
-            cluster_response=cls.client.describe_cluster(ClusterId=cluster_id)
+            cluster_response=cls.__client.describe_cluster(ClusterId=cluster_id)
             
             cluster=cluster_response['Cluster']
             ec2_attributes=cluster['Ec2InstanceAttributes']
@@ -729,10 +745,10 @@ class EMR(NonLookupableService):
                 security_group_ids.extend(ec2_attributes['AdditionalSlaveSecurityGroups'])
             
             for security_group_id in security_group_ids:
-                if security_group_id not in cls.services_by_security_group_id.keys():
-                    cls.services_by_security_group_id[security_group_id]=[cluster]
+                if security_group_id not in cls._services_by_security_group_id.keys():
+                    cls._services_by_security_group_id[security_group_id]=[cluster]
                 else:
-                    cls.services_by_security_group_id[security_group_id].append(cluster)
+                    cls._services_by_security_group_id[security_group_id].append(cluster)
         
         return
     
