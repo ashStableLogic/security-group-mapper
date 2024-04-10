@@ -1,5 +1,5 @@
 import pandas as ps
-from Services import *
+from services import *
 
 data={
     'Security Group ID':[],
@@ -11,12 +11,13 @@ data={
     'ALB':[],
     'ECS':[],
     'Redshift':[],
-    'DMS':[]
+    'DMS':[],
+    'EMR':[]
 }
 
 data_keys=list(data.keys())
 
-write_csv_filename='CSCS security groups and associated services.xlsx'
+write_csv_filename='CSCS EMR test security groups and associated services.xlsx'
 
 if __name__=="__main__":
     

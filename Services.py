@@ -136,6 +136,7 @@ class EC2(Service):
             
             interface_type=network_interface_json['InterfaceType']
             description=network_interface_json['Description']
+            security_groups=network_interface_json['Groups']
             
             instance_id=None
             
@@ -145,6 +146,8 @@ class EC2(Service):
 
             if interface_type=="lambda":
                 services_to_lookup.add(Lambda)
+            elif any(["ElasticMapReduce" in security_group['GroupName'] for security_group in security_groups]):
+                services_to_lookup.add(EMR)
             elif instance_id!=None:
                 services_to_lookup.add(EC2)
             elif "arn:aws:ecs" in description:
@@ -159,7 +162,8 @@ class EC2(Service):
                 services_to_lookup.add(Redshift)            
             elif "ElastiCache" in description:
                 services_to_lookup.add(ElastiCache)
-                
+
+            
         return services_to_lookup
       
 class NonLookupableService(Service):
@@ -167,9 +171,9 @@ class NonLookupableService(Service):
     services corresponding to a given security group.
 
     These will act the same, but store all their instances/containers etc. beforehand
-    so that I can run my own lookup.
+    so that you can run your own lookup.
     
-    This means that I'll only have to do one set of queries for each service.
+    This means that you'll only have to do one set of queries for each service.
     """
 
     @property
@@ -626,4 +630,79 @@ class DMS(NonLookupableService):
         
         return service_names
     
+class EMR(NonLookupableService):
     
+    client=boto3.client('emr')
+    services_by_security_group_id:dict[str,list]={}
+    
+    #Look for clusters in these states only
+    cluster_states=[
+        'STARTING',
+        'BOOTSTRAPPING',
+        'RUNNING',
+        'WAITING'
+        #'TERMINATING',
+        # 'TERMINATED',
+        # 'TERMINATED_WITH_ERRORS'
+    ]
+    
+    @classmethod
+    def load_services(cls) -> None:
+        
+        cluster_ids=[]
+        
+        cluster_list_response=cls.client.list_clusters(ClusterStates=cls.cluster_states)
+        
+        cluster_ids.extend([cluster['Id'] for cluster in cluster_list_response['Clusters']])
+        
+        if 'NextMarker' in cluster_list_response.keys():
+            next_token=cluster_list_response['NextMarker']
+        else:
+            next_token=None
+            
+        while next_token!=None:
+            cluster_list_response=cls.client.list_clusters(
+                ClusterStates=cls.cluster_states,
+                Marker=next_token
+            )
+        
+            cluster_ids.extend([cluster['Id'] for cluster in cluster_list_response['Clusters']])
+            
+        for cluster_id in cluster_ids:
+            security_group_ids=[]
+            
+            cluster_response=cls.client.describe_cluster(ClusterId=cluster_id)
+            
+            cluster=cluster_response['Cluster']
+            ec2_attributes=cluster['Ec2InstanceAttributes']
+            
+            security_group_ids.append(ec2_attributes['EmrManagedMasterSecurityGroup'])
+            security_group_ids.append(ec2_attributes['EmrManagedSlaveSecurityGroup'])
+            
+            if 'ServiceAccessSecurityGroup' in ec2_attributes.keys():
+                #This one is for a SG that allows acces to private subnets (I don't 100% understand that)
+                security_group_ids.append(ec2_attributes['ServiceAccessSecurityGroup'])
+         
+            #These two may contain many security groups   
+            if 'AdditionalMasterSecurityGroups' in ec2_attributes.keys():
+                security_group_ids.extend(ec2_attributes['AdditionalMasterSecurityGroups'])
+            if 'AdditionalSlaveSecurityGroups' in ec2_attributes.keys():
+                security_group_ids.extend(ec2_attributes['AdditionalSlaveSecurityGroups'])
+            
+            for security_group_id in security_group_ids:
+                if security_group_id not in cls.services_by_security_group_id.keys():
+                    cls.services_by_security_group_id[security_group_id]=[cluster]
+                else:
+                    cls.services_by_security_group_id[security_group_id].append(cluster)
+        
+        return
+    
+    @classmethod
+    def get_service_names_in_security_group(cls,security_group: dict)-> list[str]:
+        services=cls.get_services_in_security_group(security_group)
+        
+        service_names=[service['Name'] for service in services]
+        
+        return service_names           
+            
+            
