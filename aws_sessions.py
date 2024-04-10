@@ -33,11 +33,11 @@ class AwsSession(ABC):
 class IAM(AwsSession):
     
     __client=boto3.client(
-            'iam',
-            AwsSession._aws_access_key_id,
-            AwsSession._aws_secret_access_key,
-            AwsSession._aws_session_token,
-        )
+        'iam',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
     
     @classmethod
     def get_client(cls) -> boto3.Session:

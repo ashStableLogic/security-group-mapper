@@ -1,7 +1,7 @@
 import sys
 from getpass import getpass
 import pandas as ps
-from services import *
+from aws_sessions import *
 
 global data
 global data_headers
