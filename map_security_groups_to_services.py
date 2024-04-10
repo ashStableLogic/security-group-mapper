@@ -31,7 +31,9 @@ data_headers.extend(get_all_subclasses(Service))
 
 data={header:[] for header in data_headers}
 
-write_csv_filename='CSCS multi-region test security groups and associated services.xlsx'
+project_name=IAM.get_project_name()
+
+write_csv_filename=f'{project_name} IAM alias test security groups and associated services.xlsx'
 
 def get_associations(region=None):
     """Main loop of the tool, no region means all services will pull from default region """
@@ -71,7 +73,7 @@ def get_associations(region=None):
         for header,field in zip(data_headers,new_record):
             data[header].append(field)
             
-    print("fetched services")
+    print(f"fetched services for {region_to_write}")
 
 if __name__=="__main__":
     
@@ -95,5 +97,5 @@ if __name__=="__main__":
     with ps.ExcelWriter(write_csv_filename,engine='xlsxwriter',mode='w') as writer:
         df=ps.DataFrame.from_dict(data)
         df.to_excel(writer)
-        print("written")
+        print("written table")
     

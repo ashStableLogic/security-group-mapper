@@ -1,11 +1,8 @@
 from abc import ABC,abstractmethod
 import boto3
 
-class Service(ABC):
-    """Service ABC, defines a common 1:m SG in -> services out method
-    common to all services
-    """
-
+class AwsClient(ABC):
+    
     @property
     @abstractmethod
     def client():
@@ -14,6 +11,25 @@ class Service(ABC):
     @abstractmethod
     def get_client() -> boto3.Session:
         raise NotImplementedError()
+
+class IAM(AwsClient):
+    
+    __client=boto3.client('iam')
+    
+    @classmethod
+    def get_client(cls) -> boto3.Session:
+        return cls.__client
+    
+    @classmethod
+    def get_project_name(cls) -> str:
+        alias_response=cls.__client.list_account_aliases()
+        
+        return alias_response['AccountAliases'][0]
+
+class Service(AwsClient):
+    """Service ABC, defines a common 1:m SG in -> services out method
+    common to all services
+    """
     
     @abstractmethod
     def set_client_region(region_name: str) -> None:
