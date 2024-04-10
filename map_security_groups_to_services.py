@@ -1,3 +1,5 @@
+import sys
+
 import pandas as ps
 from services import *
 
@@ -17,10 +19,12 @@ data={
 
 data_keys=list(data.keys())
 
-write_csv_filename='CSCS EMR test security groups and associated services.xlsx'
+write_csv_filename='CSCS region test security groups and associated services.xlsx'
 
 if __name__=="__main__":
     
+    
+        
     security_groups=EC2.get_security_groups()
     
     # security_groups=[

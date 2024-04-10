@@ -12,6 +12,10 @@ class Service(ABC):
         raise NotImplementedError()
     
     @abstractmethod
+    def set_client_region(region_name: str) -> None:
+        raise NotImplementedError()
+    
+    @abstractmethod
     def get_services_in_security_group(security_group:dict) -> list[dict]:
         raise NotImplementedError()
     
@@ -24,6 +28,9 @@ class EC2(Service):
     client=boto3.client('ec2')
     resource=boto3.resource('ec2')
     
+    @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('ec2',region_name=region_name)
     
     @classmethod
     def get_service_names_in_security_group(cls,security_group: dict)->list[str]:
@@ -219,6 +226,10 @@ class ECS(NonLookupableService):
     ###boto3 docs state ecs client.describe_services can only
     ###take a max of take 10 services at a time
     lookup_batch_size=10
+    
+    @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('ecs',region_name=region_name)
 
     @classmethod
     def load_services(cls) -> None:
@@ -328,6 +339,10 @@ class ALB(NonLookupableService):
     services_by_security_group_id:dict[str,list]={}
     
     @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('elbv2',region_name=region_name)
+    
+    @classmethod
     def load_services(cls) -> None:
         
         services=[]
@@ -378,6 +393,10 @@ class RDS(NonLookupableService):
     
     client=boto3.client('rds')
     services_by_security_group_id:dict[str,list]={}
+    
+    @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('rds',region_name=region_name)
     
     @classmethod
     def load_services(cls)->None:        
@@ -431,6 +450,10 @@ class Redshift(NonLookupableService):
     services_by_security_group_id:dict[str,list]={}
     
     @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('redshift',region_name=region_name)
+    
+    @classmethod
     def load_services(cls)->None:        
         services=[]
 
@@ -482,6 +505,10 @@ class Lambda(NonLookupableService):
     services_by_security_group_id:dict[str,list]={}
     
     @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('lambda',region_name=region_name)
+    
+    @classmethod
     def load_services(cls)->None:        
         services=[]
 
@@ -530,6 +557,10 @@ class ElastiCache(NonLookupableService):
 
     client=boto3.client('elasticache')
     services_by_security_group_id:dict[str,list]={}
+    
+    @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('elasticache',region_name=region_name)
     
     @classmethod
     def load_services(cls) -> None:
@@ -584,6 +615,10 @@ class DMS(NonLookupableService):
     services_by_security_group_id:dict[str,list]={}
     
     @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('dms',region_name=region_name)
+    
+    @classmethod
     def load_services(cls) -> None:
         
         services=[]
@@ -634,6 +669,10 @@ class EMR(NonLookupableService):
     
     client=boto3.client('emr')
     services_by_security_group_id:dict[str,list]={}
+    
+    @classmethod
+    def set_client_region(cls,region_name: str) -> None:
+        cls.client=boto3.client('emr',region_name=region_name)
     
     #Look for clusters in these states only
     cluster_states=[
