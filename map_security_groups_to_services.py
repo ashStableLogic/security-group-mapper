@@ -1,5 +1,5 @@
 import sys
-
+from getpass import getpass
 import pandas as ps
 from services import *
 
@@ -76,6 +76,16 @@ def get_associations(region=None):
     print(f"fetched services for {region_to_write}")
 
 if __name__=="__main__":
+    
+    aws_access_key_id=getpass('aws_access_key_id: ')
+    aws_secret_access_key=getpass('aws_secret_access_key: ')
+    aws_session_token=getpass('aws_session_token (for temporary credentials): ')
+    
+    AwsSession.set_creds(
+        aws_access_key_id,
+        aws_secret_access_key,
+        aws_session_token
+    )
     
     regions=[]
     

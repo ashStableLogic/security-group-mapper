@@ -1,8 +1,26 @@
 from abc import ABC,abstractmethod
 import boto3
 
-class AwsClient(ABC):
+class AwsSession(ABC):
     
+    _aws_access_key_id=''
+    _aws_secret_access_key=''
+    _aws_session_token=''
+    
+    @classmethod
+    def set_creds(
+        cls,
+        aws_access_key_id='',
+        aws_secret_access_key='',
+        aws_session_token=''
+    ) -> None:
+        
+        cls._aws_access_key_id=aws_access_key_id
+        cls._aws_secret_access_key=aws_secret_access_key
+        cls._aws_session_token=aws_session_token
+        
+        return
+        
     @property
     @abstractmethod
     def client():
@@ -12,9 +30,14 @@ class AwsClient(ABC):
     def get_client() -> boto3.Session:
         raise NotImplementedError()
 
-class IAM(AwsClient):
+class IAM(AwsSession):
     
-    __client=boto3.client('iam')
+    __client=boto3.client(
+            'iam',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+        )
     
     @classmethod
     def get_client(cls) -> boto3.Session:
@@ -26,7 +49,7 @@ class IAM(AwsClient):
         
         return alias_response['AccountAliases'][0]
 
-class Service(AwsClient):
+class Service(AwsSession):
     """Service ABC, defines a common 1:m SG in -> services out method
     common to all services
     """
@@ -45,7 +68,13 @@ class Service(AwsClient):
 
 class EC2(Service):
 
-    __client=boto3.client('ec2')
+    __client=boto3.client(
+        'ec2',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+    
     __resource=boto3.resource('ec2')
     
     @classmethod
@@ -54,7 +83,15 @@ class EC2(Service):
     
     @classmethod
     def set_client_region(cls,region: str) -> None:
-        cls.__client=boto3.client('ec2',region_name=region)
+        cls.__client=boto3.client(
+            'ec2',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return
         
     @classmethod
     def get_resource(cls) -> boto3.Session:
@@ -252,7 +289,13 @@ class ECS(NonLookupableService):
     """Deals with lookup for ECS services
     """
 
-    __client=boto3.client('ecs')
+    __client=boto3.client(
+        'ecs',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+        
     _services_by_security_group_id:dict[str,list]={}
 
     ###boto3 docs state ecs client.describe_services can only
@@ -260,8 +303,16 @@ class ECS(NonLookupableService):
     lookup_batch_size=10
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('ecs',region_name=region_name)
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'ec2',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return
 
     @classmethod
     def load_services(cls) -> None:
@@ -367,12 +418,25 @@ class ECS(NonLookupableService):
 
 class ALB(NonLookupableService):
 
-    __client=boto3.client('elbv2')
+    __client=boto3.client(
+        'elbv2',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
     _services_by_security_group_id:dict[str,list]={}
         
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('elbv2',region_name=region_name)
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'elbv2',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return
     
     @classmethod
     def load_services(cls) -> None:
@@ -423,12 +487,26 @@ class ALB(NonLookupableService):
     
 class RDS(NonLookupableService):
     
-    __client=boto3.client('rds')
+    __client=boto3.client(
+        'rds',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+        
     _services_by_security_group_id:dict[str,list]={}
         
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('rds',region_name=region_name)
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'rds',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return
     
     @classmethod
     def load_services(cls)->None:        
@@ -478,13 +556,27 @@ class RDS(NonLookupableService):
     
 class Redshift(NonLookupableService):
     
-    __client=boto3.client('redshift')
+    __client=boto3.client(
+        'redshift',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+    
     _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('redshift',region_name=region_name)
-    
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'redshift',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return   
+     
     @classmethod
     def load_services(cls)->None:        
         services=[]
@@ -533,12 +625,26 @@ class Redshift(NonLookupableService):
     
 class Lambda(NonLookupableService):
     
-    __client=boto3.client('lambda')
+    __client=boto3.client(
+        'lambda',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+        
     _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('lambda',region_name=region_name)
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'lambda',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return
     
     @classmethod
     def load_services(cls)->None:        
@@ -587,13 +693,27 @@ class Lambda(NonLookupableService):
     
 class ElastiCache(NonLookupableService):
 
-    __client=boto3.client('elasticache')
+    __client=boto3.client(
+        'elasticache',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+        
     _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('elasticache',region_name=region_name)
-    
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'elasticache',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return  
+      
     @classmethod
     def load_services(cls) -> None:
         
@@ -643,13 +763,27 @@ class ElastiCache(NonLookupableService):
 
 class DMS(NonLookupableService):
     
-    __client=boto3.client('dms')
+    __client=boto3.client(
+        'dms',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+    
     _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('dms',region_name=region_name)
-    
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'dms',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return   
+     
     @classmethod
     def load_services(cls) -> None:
         
@@ -699,12 +833,26 @@ class DMS(NonLookupableService):
     
 class EMR(NonLookupableService):
     
-    __client=boto3.client('emr')
+    __client=boto3.client(
+        'emr',
+        AwsSession._aws_access_key_id,
+        AwsSession._aws_secret_access_key,
+        AwsSession._aws_session_token,
+    )
+        
     _services_by_security_group_id:dict[str,list]={}
     
     @classmethod
-    def set_client_region(cls,region_name: str) -> None:
-        cls.__client=boto3.client('emr',region_name=region_name)
+    def set_client_region(cls,region: str) -> None:
+        cls.__client=boto3.client(
+            'emr',
+            AwsSession._aws_access_key_id,
+            AwsSession._aws_secret_access_key,
+            AwsSession._aws_session_token,
+            region_name=region
+        )
+        
+        return    
     
     #Look for clusters in these states only
     cluster_states=[
