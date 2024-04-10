@@ -48,8 +48,8 @@ To get around this, each class stores a dict of json dicts for every service of 
 ## Adding More Service Types
 To add another service type, first of all figure out whether it is a service type that can be directly queried for all services within a given security group by checking the boto3 docs [here](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html).
 
-If it is, make it inherit the `Service` class and implement its client attribute and get methods.
-If it's not, make it inherit the `NonLookupableService` class and implement its `client` and `services_by_security_group` attributes and `load_services()` method to load and store all services of its type into `NonLookupableService.services_by_security_group`.
+If it is, make it inherit the `Service` class and implement its `client` attribute and get methods.
+If it's not, make it inherit the `NonLookupableService` class and implement its `client` and `services_by_security_group` attributes, `load_services()` and `get_service_names_in_security_group` methods to load and store all services of its type into `NonLookupableService.services_by_security_group`.
 You'll still need to implement its `NonLookupableService.get_service_names_in_security_group()` it inherits from the `Service` class.
 
 # Requirements
