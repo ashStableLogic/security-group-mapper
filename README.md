@@ -59,6 +59,6 @@ This repo has a conda requirements file.
 In your conda prompt, run conda env create -f requirements.yml
 
 # TODO
- - [ ] Add EMR as a supported service type
+ - [x] Add EMR as a supported service type
  - [ ] Add support for multiple regions for each service type
  - [ ] Tidy up and comment everything

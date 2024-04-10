@@ -3,28 +3,35 @@ import sys
 import pandas as ps
 from services import *
 
-data={
-    'Security Group ID':[],
-    'Security Group Name':[],
-    'ElastiCache':[],
-    'Lambda':[],
-    'EC2':[],
-    'RDS':[],
-    'ALB':[],
-    'ECS':[],
-    'Redshift':[],
-    'DMS':[],
-    'EMR':[]
-}
+def get_all_subclasses(cls):
+    all_subclasses=[]
+    
+    for subclass in cls.__subclasses__():
+        if len(subclass.__subclasses__())==0:
+            all_subclasses.append(subclass.__name__)
+            
+        all_subclasses.extend(get_all_subclasses(subclass))
+        
+    return all_subclasses
 
-data_keys=list(data.keys())
+##Only add headers which you will manually add to in the main script below,
+##the above function will handle adding the names of services to be searched using
+##those implemented in the services module (Services must not be superclasses)
 
-write_csv_filename='CSCS region test security groups and associated services.xlsx'
+data_headers=[
+    'Security Group ID',
+    'Security Group Name',
+    'Securty Group Region'
+]
+
+data_headers.extend(get_all_subclasses(Service))
+
+data={header:[] for header in data_headers}
+
+write_csv_filename='CSCS header test security groups and associated services.xlsx'
 
 if __name__=="__main__":
-    
-    
-        
+            
     security_groups=EC2.get_security_groups()
     
     # security_groups=[
@@ -46,7 +53,7 @@ if __name__=="__main__":
         service_types_to_lookup=EC2.get_service_types_from_network_interfaces(network_interfaces)
         
         for service in service_types_to_lookup:               
-            new_record[data_keys.index(service.__name__)]='\n'.join(service.get_service_names_in_security_group(security_group))
+            new_record[data_headers.index(service.__name__)]='\n'.join(service.get_service_names_in_security_group(security_group))
             
         for key,field in zip(data.keys(),new_record):
             data[key].append(field)
