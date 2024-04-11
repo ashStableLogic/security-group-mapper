@@ -1,5 +1,5 @@
 from getpass import getpass
-from aws_sessions import AwsSession
+# from aws_sessions import AwsSession
 
 aws_access_key_id=getpass('aws_access_key_id: ')
 aws_secret_access_key=getpass('aws_secret_access_key: ')
