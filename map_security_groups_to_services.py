@@ -54,7 +54,7 @@ def setup(keys_csv_path: str) -> None:
     elif len(keys_data) == 3:
         aws_session_token = keys_data[2]
 
-    Service.set_creds(aws_access_key_id, aws_secret_access_key, aws_session_token)
+    Service.set_keys(aws_access_key_id, aws_secret_access_key, aws_session_token)
 
     [subclass.set_client() for subclass in get_all_subclasses(GlobalService)]
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
     project_name = IAM.get_project_name()
 
-    write_csv_filename = f"{project_name} input aws creds test security groups and associated services.xlsx"
+    write_csv_filename = f"{project_name} security groups and associated services.xlsx"
 
     # all_regions=Account.list_available_regions()
     all_regions = EC2.list_available_regions()

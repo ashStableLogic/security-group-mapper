@@ -36,7 +36,7 @@ class Service(ABC):
     _aws_session_token = ""
 
     @classmethod
-    def set_creds(
+    def set_keys(
         cls,
         aws_access_key_id: str = "",
         aws_secret_access_key: str = "",
@@ -196,17 +196,17 @@ class IAM(GlobalService):
 
 
 class RegionalService(Service):
-    """Base class for services that can appear in separate reigions.
+    """Base class for services that can appear in separate regions.
 
-    This encomapsses most AWS products such as EC2, DBs, etc.
+    This encompasses most AWS products such as EC2, DBs, etc.
 
     Inherits:
-        Service: Service base class
+        Service:                Service base class
 
     Raises:
-        NotImplementedError: If get_services_in_security_group not implemented
+        NotImplementedError:    If get_services_in_security_group not implemented
 
-        NotImplementedError: If get_service_names_in_security_group not implemented
+        NotImplementedError:    If get_service_names_in_security_group not implemented
     """
 
     @classmethod
